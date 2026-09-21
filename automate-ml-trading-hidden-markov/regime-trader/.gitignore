@@ -1,0 +1,16 @@
+.env
+config/credentials.yaml
+
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+.venv/
+venv/
+env/
+
+*.pkl
+*.log
+.DS_Store
