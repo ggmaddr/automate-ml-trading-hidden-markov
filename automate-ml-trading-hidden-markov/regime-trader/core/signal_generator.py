@@ -11,7 +11,7 @@ from typing import Optional
 import pandas as pd
 
 from core.hmm_engine import HMMRegimeEngine, RegimeState
-from core.regime_strategies import AllocationDecision, RegimeStrategy
+from core.regime_strategies import Signal, StrategyOrchestrator
 from core.risk_manager import RiskManager
 
 
@@ -33,17 +33,17 @@ class TradingSignal:
     action: SignalAction
     target_allocation: float
     regime_state: RegimeState
-    allocation_decision: AllocationDecision
+    signal: Signal
     confidence: float
 
 
 class SignalGenerator:
-    """Orchestrates HMM engine, strategy, and risk manager into signals."""
+    """Orchestrates HMM engine, strategy orchestrator, and risk manager into signals."""
 
     def __init__(
         self,
         hmm_engine: HMMRegimeEngine,
-        strategy: RegimeStrategy,
+        orchestrator: StrategyOrchestrator,
         risk_manager: RiskManager,
         config: dict,
     ) -> None:

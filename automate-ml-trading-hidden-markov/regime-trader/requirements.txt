@@ -11,3 +11,4 @@ python-dotenv
 websocket-client
 schedule
 rich
+yfinance  # demo.py only — free historical data, no API key needed
