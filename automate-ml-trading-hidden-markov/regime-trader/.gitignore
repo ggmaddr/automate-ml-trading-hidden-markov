@@ -16,3 +16,4 @@ env/
 .DS_Store
 
 personal_notes/
+backtest_results/

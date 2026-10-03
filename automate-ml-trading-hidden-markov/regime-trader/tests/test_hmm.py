@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from core.hmm_engine import LABEL_SETS, HMMRegimeEngine
@@ -79,6 +80,33 @@ def test_flicker_rate_within_bounds(synthetic_ohlcv, small_hmm_config):
     rate = engine.get_regime_flicker_rate()
     assert 0 <= rate <= small_hmm_config["flicker_window"]
     assert engine.is_flickering() == (rate > small_hmm_config["flicker_threshold"])
+
+
+def test_full_covariance_survives_singular_state(synthetic_ohlcv):
+    # Two perfectly collinear columns make at least one state's covariance
+    # matrix exactly singular. With covariance_type="full" (the production
+    # default) this must not crash scipy's multivariate_normal — regression
+    # test for a real crash seen when running the walk-forward backtester
+    # on real data (small_hmm_config uses "diag" and never exercised this).
+    rng = np.random.default_rng(0)
+    col_a = rng.normal(size=300)
+    features = pd.DataFrame(
+        {"a": col_a, "b": col_a * 2.0, "c": rng.normal(size=300)},
+        index=synthetic_ohlcv.index[:300],
+    )
+    returns = pd.Series(rng.normal(0, 0.01, 300), index=features.index)
+
+    config = {
+        "n_candidates": [3], "n_init": 1, "covariance_type": "full",
+        "min_train_bars": 100, "stability_bars": 3, "flicker_window": 20,
+        "flicker_threshold": 4, "min_confidence": 0.55,
+    }
+    engine = HMMRegimeEngine(config)
+    engine.fit(features, returns)
+
+    result = engine.predict_regime_filtered(features)
+    assert len(result) == len(features)
+    assert np.isfinite(engine.predict_regime_proba(features)).all()
 
 
 def test_fit_raises_below_min_train_bars(synthetic_ohlcv, small_hmm_config):

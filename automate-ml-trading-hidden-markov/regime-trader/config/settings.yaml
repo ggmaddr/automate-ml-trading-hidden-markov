@@ -47,6 +47,14 @@ risk:
   weekly_dd_reduce: 0.05
   weekly_dd_halt: 0.07
   max_dd_from_peak: 0.10          # max drawdown from equity peak before full halt
+  max_correlated_exposure: 0.30   # max combined exposure (fraction of equity) in one sector
+  min_position_dollars: 100       # reject a sized position below this notional
+  gap_risk_atr_mult: 3            # overnight gap-through assumption, in multiples of the stop distance
+  overnight_max_pct: 0.02         # max loss (fraction of equity) if a 3x gap-through stop hits
+  correlation_reduce_threshold: 0.70   # 60-day correlation with an existing position above this -> halve size
+  correlation_reject_threshold: 0.85   # above this -> reject the trade outright
+  max_bid_ask_spread_pct: 0.005    # reject if spread wider than this
+  duplicate_order_window_seconds: 60   # block same symbol+direction within this window
 
 backtest:
   slippage_pct: 0.0005

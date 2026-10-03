@@ -27,6 +27,10 @@ from scipy.stats import multivariate_normal
 
 logger = logging.getLogger(__name__)
 
+# Ridge added to full covariance matrices before likelihood evaluation —
+# guards against numerically-near-singular states (see _log_emission).
+_COV_JITTER = 1e-6
+
 # Regime name sets, ordered by ascending mean return, keyed by n_regimes.
 LABEL_SETS: dict[int, list[str]] = {
     3: ["BEAR", "NEUTRAL", "BULL"],
@@ -261,14 +265,25 @@ class HMMRegimeEngine:
     # ------------------------------------------------------------------
 
     def _log_emission(self, X: np.ndarray) -> np.ndarray:
-        """log P(observation_t | state) for every t, state. Shape (T, n_states)."""
+        """log P(observation_t | state) for every t, state. Shape (T, n_states).
+
+        With covariance_type="full" and many correlated features, a state
+        that EM assigned few/tightly-clustered samples to can end up with a
+        covariance matrix that is numerically singular or just barely not
+        positive-definite (floating-point noise, not a real modeling error).
+        We add a tiny ridge (jitter) to the diagonal and allow scipy to fall
+        back to a pseudo-inverse rather than crash — standard practice for
+        likelihood evaluation on an estimated covariance matrix.
+        """
         n_states = self.model.n_components
         T = X.shape[0]
         log_emission = np.empty((T, n_states))
         for state in range(n_states):
             mean = self.model.means_[state]
             cov = self.model.covars_[state]
-            log_emission[:, state] = multivariate_normal.logpdf(X, mean=mean, cov=cov)
+            if np.ndim(cov) == 2:
+                cov = cov + _COV_JITTER * np.eye(cov.shape[0])
+            log_emission[:, state] = multivariate_normal.logpdf(X, mean=mean, cov=cov, allow_singular=True)
         return log_emission
 
     def _forward_log_alpha(self, X: np.ndarray) -> np.ndarray:
