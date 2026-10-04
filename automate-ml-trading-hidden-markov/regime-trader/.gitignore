@@ -1,5 +1,4 @@
 .env
-config/credentials.yaml
 
 __pycache__/
 *.pyc

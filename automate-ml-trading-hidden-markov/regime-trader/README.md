@@ -1,5 +1,7 @@
 # regime-trader
 
+![regime-trader dashboard](demo.png)
+
 A systematic trading bot that classifies market **volatility regimes** with a
 Gaussian Hidden Markov Model and drives portfolio allocation off that
 classification. It does not predict price direction. It is long-only, built
@@ -108,15 +110,19 @@ alert manager, and a live terminal dashboard).
    cd regime-trader
    pip install -r requirements.txt
    ```
-2. **Set up credentials** (get free paper-trading keys at
-   [alpaca.markets](https://alpaca.markets)):
+2. **Set up credentials** — all of them live in `.env`, nowhere else:
    ```bash
-   cp .env.example .env            # then edit .env: fill in ALPACA_API_KEY / ALPACA_SECRET_KEY
-   cp config/credentials.yaml.example config/credentials.yaml   # optional: email/webhook alerts
+   cp .env.example .env
    ```
-   Steps 1-4 below work without real keys. Steps 5 and 6 need real (free)
-   paper keys in `.env` — if you see "Could not connect to Alpaca", that's
-   `.env` still holding the `your_key_here` placeholders.
+   Then open `.env` and REPLACE the placeholder values with your free
+   paper-trading keys from [alpaca.markets](https://alpaca.markets):
+   ```
+   ALPACA_API_KEY=your_key_here      ->  ALPACA_API_KEY=PK...
+   ALPACA_SECRET_KEY=your_secret_here -> ALPACA_SECRET_KEY=...
+   ```
+   Steps 1-4 below work without real keys. Steps 5-7 need real (free)
+   paper keys in `.env` — if you see "Could not connect to Alpaca", `.env`
+   still has the `your_key_here` / `your_secret_here` placeholders in it.
 3. **Run the test suite** — confirms your environment is sound before you
    touch real (even paper) money:
    ```bash
@@ -139,6 +145,21 @@ alert manager, and a live terminal dashboard).
    drop `--dry-run` and let it trade your **paper** account. See the
    [checklist](#final-validation--paper-trading-checklist) below before you
    do that.
+7. **Open the dashboard** to actually watch step 6 run, instead of reading
+   log lines. Two options, your choice — run one in a second terminal
+   while step 6 is still running:
+   ```bash
+   python main.py run --dry-run --live-dashboard 
+   ```
+   or, for a browser UI, re-run step 6 with `--web-dashboard` added, then
+   in a second terminal:
+   ```bash
+   streamlit run dashboard_app.py
+   ```
+   This opens `http://localhost:8501` in your browser automatically, with
+   a "Live" view showing regime/portfolio/positions/risk, and a "Backtest"
+   view over the results from step 4. See
+   [Web dashboard](#web-dashboard-streamlit) below for details.
 
 ---
 

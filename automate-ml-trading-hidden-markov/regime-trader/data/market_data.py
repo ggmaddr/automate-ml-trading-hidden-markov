@@ -13,6 +13,7 @@ key/secret, not the `paper` flag.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 import pandas as pd
@@ -45,6 +46,32 @@ def _parse_timeframe(timeframe: str) -> TimeFrame:
     return TimeFrame(int(digits), _TIMEFRAME_UNITS[unit_str])
 
 
+_TRADING_HOURS_PER_DAY = 6.5
+_DEFAULT_LOOKBACK_LIMIT = 2000  # used only to size the lookback window when the caller gives neither start nor limit
+
+
+def _default_lookback_start(tf: TimeFrame, limit: Optional[int], end: Optional[datetime]) -> datetime:
+    """Alpaca's bars endpoint needs an explicit `start` -- a request with only
+    `limit` and no start/end returns ZERO bars, not "however many fit" (this
+    is what broke get_historical_bars(symbol, limit=2000) with no start/end:
+    it silently got back an empty, columnless DataFrame).
+
+    This picks a `start` far enough back to comfortably cover `limit` bars
+    for the given timeframe, padding 2x for weekends/holidays/non-trading
+    hours. get_historical_bars then trims the (wider) fetched window down to
+    exactly the most recent `limit` bars with .tail().
+    """
+    end = end or datetime.now(timezone.utc)
+    limit = limit or _DEFAULT_LOOKBACK_LIMIT
+    if tf.unit == TimeFrameUnit.Day:
+        calendar_days = limit * 2 + 15  # ~252 trading days per 365 calendar days
+    elif tf.unit == TimeFrameUnit.Hour:
+        calendar_days = (limit * tf.amount / _TRADING_HOURS_PER_DAY) * 2 + 15
+    else:
+        calendar_days = (limit * tf.amount / (_TRADING_HOURS_PER_DAY * 60)) * 2 + 15
+    return end - timedelta(days=calendar_days)
+
+
 class MarketDataFeed:
     """Fetches historical/latest bars and quotes, and manages the live data stream."""
 
@@ -65,23 +92,32 @@ class MarketDataFeed:
     def get_historical_bars(
         self, symbol: str, timeframe: str = "1Day", start=None, end=None, limit: Optional[int] = None,
     ) -> pd.DataFrame:
-        """Return OHLCV bars as a DataFrame indexed by timestamp, lowercase columns.
+        """Return the most recent `limit` OHLCV bars as a DataFrame indexed by
+        timestamp, lowercase columns (or every bar in [start, end] if `limit`
+        is None).
 
         Gaps from weekends/holidays/halts simply don't appear as rows —
         downstream rolling-window code (data.feature_engineering) operates
         on bar COUNT, not calendar time, so this is handled gracefully by
         construction rather than needing special-case gap-filling.
         """
-        request = StockBarsRequest(
-            symbol_or_symbols=symbol, timeframe=_parse_timeframe(timeframe), start=start, end=end, limit=limit,
-        )
+        tf = _parse_timeframe(timeframe)
+        if start is None:
+            start = _default_lookback_start(tf, limit, end)
+
+        # `limit` isn't passed to Alpaca here: its API applies `limit` by
+        # truncating from the OLDEST end of [start, end], not the newest --
+        # the opposite of "give me the most recent N bars" -- so the full
+        # window is fetched and trimmed to the latest `limit` bars below.
+        request = StockBarsRequest(symbol_or_symbols=symbol, timeframe=tf, start=start, end=end)
         bar_set = self._hist_client.get_stock_bars(request)
         df = bar_set.df
         if df.empty:
-            return df
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
         if isinstance(df.index, pd.MultiIndex):
             df = df.xs(symbol, level=0)
-        return df.rename(columns=str.lower)[["open", "high", "low", "close", "volume"]]
+        df = df.rename(columns=str.lower)[["open", "high", "low", "close", "volume"]]
+        return df.tail(limit) if limit else df
 
     def get_latest_bar(self, symbol: str) -> Optional[dict]:
         request = StockLatestBarRequest(symbol_or_symbols=symbol)

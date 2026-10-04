@@ -1,9 +1,10 @@
 """Alerts for critical events: regime change, circuit breaker, large P&L,
 data feed down, API lost, HMM retrained, flicker exceeded.
 
-Delivery: console + log file always; email/webhook only if configured
-(from config/credentials.yaml, never hardcoded). Each event TYPE is
-rate-limited independently to at most one delivery per
+Delivery: console + log file always; email/webhook only if the caller passes
+`email_config`/`webhook_config` to AlertManager (e.g. built from `.env`
+variables, never hardcoded). Each event TYPE is rate-limited independently
+to at most one delivery per
 `alert_rate_limit_minutes` (default 15, from settings.yaml's monitoring
 section), so a storm of one kind of alert can't bury a different kind.
 """
@@ -51,8 +52,9 @@ class AlertManager:
     """Sends rate-limited alerts via console, log, and optionally email/webhook.
 
     `config` is the `monitoring:` section of settings.yaml. `email_config` /
-    `webhook_config` are the corresponding sections of credentials.yaml
-    (config/credentials.yaml.example) — left None to skip that channel.
+    `webhook_config` are plain dicts the caller builds (e.g. from `.env`
+    variables) — left None to skip that channel; see _deliver_email() /
+    _deliver_webhook() below for the keys each one expects.
     """
 
     def __init__(

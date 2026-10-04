@@ -183,7 +183,7 @@ class AlpacaClient:
             pattern_day_trader=bool(account.pattern_day_trader),
             trading_blocked=bool(account.trading_blocked),
             account_blocked=bool(account.account_blocked),
-            daytrade_count=int(account.daytrade_count),
+            daytrade_count=int(account.daytrade_count or 0),  # Alpaca returns None, not 0, on a brand-new account
         )
 
     def get_available_margin(self) -> float:

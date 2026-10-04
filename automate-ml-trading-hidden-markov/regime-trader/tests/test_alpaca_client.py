@@ -96,6 +96,16 @@ def test_get_account_converts_fields():
     assert account.daytrade_count == 2
 
 
+def test_get_account_treats_none_daytrade_count_as_zero():
+    """A brand-new paper account (zero trades ever) returns daytrade_count=None,
+    not 0 -- int(None) crashes TradingBot.startup() on the very first run.
+    """
+    client, mock_trading = _make_client()
+    mock_trading.get_account.return_value = _fake_account(daytrade_count=None)
+    account = client.get_account()
+    assert account.daytrade_count == 0
+
+
 def test_get_available_margin():
     client, mock_trading = _make_client()
     mock_trading.get_account.return_value = _fake_account(cash=30_000.0, buying_power=100_000.0)
