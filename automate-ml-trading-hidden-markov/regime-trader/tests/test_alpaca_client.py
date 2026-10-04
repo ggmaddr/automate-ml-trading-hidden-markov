@@ -11,6 +11,7 @@ import pytest
 from alpaca.common.exceptions import APIError
 
 from broker.alpaca_client import (
+    AlpacaAuthError,
     AlpacaClient,
     AlpacaConnectionError,
     LiveTradingNotConfirmedError,
@@ -18,6 +19,11 @@ from broker.alpaca_client import (
     confirm_live_trading,
     load_alpaca_credentials,
 )
+
+
+def _auth_error(status_code: int) -> APIError:
+    http_error = SimpleNamespace(response=SimpleNamespace(status_code=status_code))
+    return APIError('{"message": "unauthorized"}', http_error=http_error)
 
 
 def _fake_account(**overrides) -> SimpleNamespace:
@@ -141,3 +147,18 @@ def test_retries_exhausted_raises_connection_error(monkeypatch):
     with pytest.raises(AlpacaConnectionError):
         client.get_account()
     assert mock_trading.get_account.call_count == 2
+
+
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_auth_error_fails_fast_without_retrying(monkeypatch, status_code):
+    client, mock_trading = _make_client(max_retries=3)
+    sleeps = []
+    monkeypatch.setattr("broker.alpaca_client.time.sleep", lambda d: sleeps.append(d))
+    mock_trading.get_account.reset_mock()
+    mock_trading.get_account.side_effect = _auth_error(status_code)
+
+    with pytest.raises(AlpacaAuthError):
+        client.get_account()
+
+    assert mock_trading.get_account.call_count == 1  # no retries on a hard auth failure
+    assert sleeps == []  # and no backoff delay burned either

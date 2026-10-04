@@ -17,3 +17,5 @@ env/
 
 personal_notes/
 backtest_results/
+state_snapshot.json
+dashboard_state.json

@@ -40,6 +40,13 @@ class AlpacaConnectionError(RuntimeError):
     """Raised when the Alpaca API is unreachable after all retries."""
 
 
+class AlpacaAuthError(RuntimeError):
+    """Raised immediately on a 401/403 -- bad/placeholder API keys never
+    succeed on retry, so this skips the retry/backoff entirely instead of
+    wasting several seconds reproducing the same failure.
+    """
+
+
 class LiveTradingNotConfirmedError(RuntimeError):
     """Raised when live (non-paper) trading was requested but not confirmed."""
 
@@ -143,6 +150,12 @@ class AlpacaClient:
             try:
                 return func(*args, **kwargs)
             except APIError as exc:
+                if exc.status_code in (401, 403):
+                    raise AlpacaAuthError(
+                        "Alpaca rejected your API key/secret (401/403). Check ALPACA_API_KEY and "
+                        "ALPACA_SECRET_KEY in .env -- these still look like the .env.example "
+                        "placeholders if you haven't replaced them yet."
+                    ) from exc
                 last_exc = exc
                 logger.warning("Alpaca API error (attempt %d/%d): %s", attempt, self.max_retries, exc)
                 if attempt < self.max_retries:

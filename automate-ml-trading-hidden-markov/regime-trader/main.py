@@ -8,6 +8,7 @@
     python main.py run --dry-run       # full pipeline, no orders submitted
     python main.py run --train-only    # train the HMM and exit
     python main.py run --dashboard     # show the last saved state snapshot
+    python main.py run --web-dashboard # feed dashboard_state.json for `streamlit run dashboard_app.py`
 
 `run` requires a real Alpaca account (paper is fine, and is the default —
 see config/settings.yaml's broker.paper_trading) and so cannot be
@@ -178,7 +179,11 @@ def save_outputs(result: BacktestResult, out_dir: str = "backtest_results") -> N
     result.equity_curve.to_csv(f"{out_dir}/equity_curve.csv", header=["equity"])
     result.trades.to_csv(f"{out_dir}/trade_log.csv", index=False)
     result.regime_history.to_csv(f"{out_dir}/regime_history.csv", index=False)
-    console.print(f"\n  Saved equity_curve.csv, trade_log.csv, regime_history.csv -> {out_dir}/")
+    # One column per symbol, so dashboard_app.py can render the per-symbol
+    # breakdown (print_symbol_breakdown's tables) without re-running the backtest.
+    per_symbol_df = pd.concat(result.per_symbol_equity, axis=1)
+    per_symbol_df.to_csv(f"{out_dir}/per_symbol_equity.csv")
+    console.print(f"\n  Saved equity_curve.csv, trade_log.csv, regime_history.csv, per_symbol_equity.csv -> {out_dir}/")
 
 
 # ---------------------------------------------------------------------------
@@ -233,10 +238,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     """
     import pickle
 
-    from broker.alpaca_client import AlpacaClient
+    from broker.alpaca_client import AlpacaAuthError, AlpacaClient, AlpacaConnectionError
     from core.hmm_engine import HMMRegimeEngine
     from core.trading_bot import DEFAULT_MODEL_PATH, TradingBot
     from data.market_data import MarketDataFeed
+    from monitoring.logger import get_alerts_logger, get_main_logger, get_regime_logger, get_trades_logger
 
     config = load_config()
 
@@ -244,8 +250,21 @@ def cmd_run(args: argparse.Namespace) -> None:
         _show_last_snapshot()
         return
 
-    alpaca_client = AlpacaClient(paper=config["broker"]["paper_trading"])
-    market_data = MarketDataFeed()
+    # The live dashboard (rich.live.Live) and scrolling console log lines
+    # fight over the same terminal region, so console echo is off whenever
+    # --live-dashboard is active; file logging (logs/*.log) stays on either way.
+    get_main_logger(console=not args.live_dashboard)
+    get_trades_logger()
+    get_alerts_logger()
+    get_regime_logger()
+
+    try:
+        alpaca_client = AlpacaClient(paper=config["broker"]["paper_trading"])
+        market_data = MarketDataFeed()
+    except (ValueError, AlpacaAuthError, AlpacaConnectionError) as exc:
+        console.print(f"[red]Could not connect to Alpaca:[/red] {exc}")
+        console.print("Check ALPACA_API_KEY / ALPACA_SECRET_KEY in .env (see .env.example) and try again.")
+        sys.exit(1)
 
     hmm_engine = None
     if os.path.exists(DEFAULT_MODEL_PATH):
@@ -267,6 +286,18 @@ def cmd_run(args: argparse.Namespace) -> None:
         return
 
     bot.startup(features_by_symbol={primary_symbol: features}, returns_by_symbol={primary_symbol: returns})
+
+    if args.live_dashboard:
+        bot.start_dashboard()
+        console.print("[dim]Live dashboard active; console logging is suppressed -- tail logs/main.log for text logs.[/dim]")
+
+    if args.web_dashboard:
+        bot.start_json_dashboard_feed()
+        console.print(
+            "[dim]Writing dashboard_state.json for the Streamlit UI -- "
+            "run `streamlit run dashboard_app.py` in another terminal.[/dim]"
+        )
+
     bot.run(config["broker"]["symbols"], timeframe=config["broker"]["timeframe"])
 
 
@@ -306,7 +337,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run the live/paper trading loop (Phase 7)")
     run_parser.add_argument("--dry-run", action="store_true", help="Full pipeline, no orders submitted")
     run_parser.add_argument("--train-only", action="store_true", help="Train the HMM and exit")
-    run_parser.add_argument("--dashboard", action="store_true", help="Show the last saved state snapshot")
+    run_parser.add_argument("--dashboard", action="store_true", help="Show the last saved state snapshot and exit")
+    run_parser.add_argument(
+        "--live-dashboard", action="store_true",
+        help="Show the live auto-refreshing dashboard UI in this terminal while running",
+    )
+    run_parser.add_argument(
+        "--web-dashboard", action="store_true",
+        help="Continuously write dashboard_state.json for the Streamlit UI (see `streamlit run dashboard_app.py`)",
+    )
     run_parser.set_defaults(func=cmd_run)
 
     return parser

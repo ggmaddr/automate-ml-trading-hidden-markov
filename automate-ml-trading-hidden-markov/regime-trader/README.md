@@ -10,12 +10,9 @@ reviewed and tested before the next began.
 > intentionally skipped (requires a real Alpaca paper account — see
 > [Paper-trading verification](#paper-trading-verification)).
 
----
+<!-- ---
 
 ## Disclaimer
-
-**This project is for educational and system-building purposes only.**
-
 - Nothing here is investment advice, and no profit is guaranteed or implied.
 - Trading involves real financial risk, including the risk of total loss.
 - Every strategy, parameter, and assumption in this repository must be
@@ -26,7 +23,7 @@ reviewed and tested before the next began.
 - The authors/contributors accept no liability for losses incurred by using
   this code.
 
----
+--- -->
 
 ## Philosophy: risk management > signal generation
 
@@ -98,7 +95,8 @@ alert manager, and a live terminal dashboard).
 | `monitoring/logger.py` | Structured JSON logs, 4 rotating files | 8 |
 | `monitoring/dashboard.py` | Live terminal dashboard (rich) | 8 |
 | `monitoring/alerts.py` | Rate-limited alerts: console/log/email/webhook | 8 |
-| `main.py` | CLI: `backtest`, `run` (live/paper, `--dry-run`, `--train-only`, `--dashboard`) | 4, 7 |
+| `main.py` | CLI: `backtest`, `run` (live/paper, `--dry-run`, `--train-only`, `--dashboard`, `--live-dashboard`, `--web-dashboard`) | 4, 7 |
+| `dashboard_app.py` | Streamlit web UI: live bot state + a backtest-results explorer | 8 |
 | `demo.py` | Standalone script demonstrating Phases 1-3 on real data (no broker needed) | 1-3 |
 
 ---
@@ -108,15 +106,17 @@ alert manager, and a live terminal dashboard).
 1. **Clone and install:**
    ```bash
    cd regime-trader
-   python3 -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt
    ```
 2. **Set up credentials** (get free paper-trading keys at
    [alpaca.markets](https://alpaca.markets)):
    ```bash
-   cp .env.example .env            # fill in ALPACA_API_KEY / ALPACA_SECRET_KEY
+   cp .env.example .env            # then edit .env: fill in ALPACA_API_KEY / ALPACA_SECRET_KEY
    cp config/credentials.yaml.example config/credentials.yaml   # optional: email/webhook alerts
    ```
+   Steps 1-4 below work without real keys. Steps 5 and 6 need real (free)
+   paper keys in `.env` — if you see "Could not connect to Alpaca", that's
+   `.env` still holding the `your_key_here` placeholders.
 3. **Run the test suite** — confirms your environment is sound before you
    touch real (even paper) money:
    ```bash
@@ -149,10 +149,12 @@ python main.py backtest --symbols SPY --start 2019-01-01 --end 2024-12-31
 python main.py backtest --symbols SPY --start 2019-01-01 --end 2024-12-31 --compare
 python main.py backtest --symbols SPY QQQ --stress-test [--n-simulations 100]
 
-python main.py run                 # live/paper trading loop (needs real Alpaca keys in .env)
-python main.py run --dry-run       # full pipeline, no orders submitted
-python main.py run --train-only    # train the HMM and exit
-python main.py run --dashboard     # show the last saved state snapshot
+python main.py run                    # live/paper trading loop (needs real Alpaca keys in .env)
+python main.py run --dry-run          # full pipeline, no orders submitted
+python main.py run --train-only       # train the HMM and exit
+python main.py run --dashboard        # show the last saved state snapshot and exit
+python main.py run --live-dashboard   # run with the live auto-refreshing dashboard UI in this terminal
+python main.py run --web-dashboard    # feed dashboard_state.json for `streamlit run dashboard_app.py`
 ```
 
 | Flag | Effect |
@@ -164,7 +166,41 @@ python main.py run --dashboard     # show the last saved state snapshot
 | `--n-simulations` | Monte Carlo count for `--stress-test` (default 100 — slow, retrains the HMM every simulation) |
 | `--dry-run` | Runs the full live pipeline (HMM → strategy → risk) but submits no orders |
 | `--train-only` | Trains/retrains the HMM, saves `hmm_model.pkl`, exits |
-| `--dashboard` | Prints the last saved `state_snapshot.json` — **not** a live-attached view (see caveat in `main.py`'s `cmd_run`) |
+| `--dashboard` | Prints the last saved `state_snapshot.json` and exits — a one-time snapshot, not a live view (combine with a separately-running `run` instance to inspect its last save) |
+| `--live-dashboard` | Runs the bot with the REGIME/PORTFOLIO/POSITIONS/... dashboard panel live in this terminal, auto-refreshing every `monitoring.dashboard_refresh_seconds`. Console log lines are suppressed while it's active (they'd fight the dashboard for the same terminal region) — tail `logs/main.log` in another terminal for text logs meanwhile. |
+| `--web-dashboard` | Continuously writes `dashboard_state.json` to disk so a separately-running `streamlit run dashboard_app.py` can poll it — see [Web dashboard](#web-dashboard-streamlit) below. Combine freely with `--live-dashboard` and/or `--dry-run`. |
+
+Combine `--dry-run` with `--live-dashboard` to watch the full decision
+pipeline live without placing real orders — the best way to get a feel for
+the system before your first real paper-trading session.
+
+---
+
+## Web dashboard (Streamlit)
+
+`dashboard_app.py` is a browser-based alternative to the terminal
+dashboard, with two views:
+
+- **Live** — polls `dashboard_state.json`, which `python main.py run
+  --web-dashboard` writes every `monitoring.dashboard_refresh_seconds`.
+  Same regime/portfolio/positions/risk/system panel as the terminal
+  dashboard, laid out for a browser instead.
+- **Backtest** — reads `backtest_results/*.csv` (produced by `python
+  main.py backtest ...`) and renders the equity curve + drawdown, trade
+  log, and per-regime/per-confidence breakdowns interactively, computed
+  with the exact same `backtest/performance.py` functions the CLI report
+  uses.
+
+```bash
+pip install -r requirements.txt   # adds streamlit + plotly
+python main.py run --dry-run --web-dashboard   # in one terminal
+streamlit run dashboard_app.py                 # in another, from regime-trader/
+```
+
+The Live view has the same IPC limitation as `--live-dashboard` (see the
+FAQ below): it only shows a bot that's actually writing
+`dashboard_state.json` right now, not an arbitrary already-running
+instance you didn't start with `--web-dashboard`.
 
 ---
 
@@ -261,15 +297,26 @@ block and require you to type `YES I UNDERSTAND THE RISKS` exactly — see
 until you've completed the [paper-trading checklist](#final-validation--paper-trading-checklist)
 below.
 
-### Why does `--dashboard` just print a file instead of showing something live?
+### How do I open the dashboard UI?
 
-There's no IPC channel between a running bot process and a second CLI
-invocation in this codebase — building one (a local socket server, a
-shared-memory region, etc.) was out of scope. `--dashboard` honestly
-reflects that: it prints the last `state_snapshot.json` a running instance
-saved (at shutdown, or after an unhandled error), not a live view. For a
-genuinely live view, run `monitoring.dashboard.Dashboard().run(...)` inside
-the same process as `TradingBot` (see `Dashboard.run()`'s docstring).
+Run the bot with `python main.py run --live-dashboard` (add `--dry-run` too
+if you just want to watch it without placing orders). That shows the live,
+auto-refreshing REGIME/PORTFOLIO/POSITIONS/RISK STATUS/SYSTEM panel from
+the Phase 8 spec, right in that terminal. Prefer a browser? Add
+`--web-dashboard` instead (or alongside it) and run `streamlit run
+dashboard_app.py` separately — see [Web dashboard](#web-dashboard-streamlit).
+
+Both only work attached to a process you're starting — there's no IPC
+channel between an *already-running* bot and a second CLI invocation (that
+would need a local socket server or shared-memory region, which was out of
+scope). `--web-dashboard` works around this with a file instead of a
+socket: the bot overwrites `dashboard_state.json` on every refresh, and
+`dashboard_app.py` just polls that file from a separate process — close
+enough to live for a dashboard, with none of that complexity. Plain
+`--dashboard` (no `--live-`/`--web-`) is the simplest fallback: it prints
+the last `state_snapshot.json` a running instance saved (at shutdown, or
+after an unhandled error) — a point-in-time snapshot from another
+terminal, not a live view.
 
 ---
 

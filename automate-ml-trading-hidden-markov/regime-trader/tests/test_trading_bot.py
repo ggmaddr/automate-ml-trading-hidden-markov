@@ -10,6 +10,7 @@ core/trading_bot.py for why.
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -344,3 +345,60 @@ def test_get_dashboard_state_shape(fresh_trained_hmm, full_config, synthetic_ohl
     state = bot.get_dashboard_state()
     assert set(state) == {"regime", "portfolio", "positions", "recent_signals", "risk", "system"}
     assert state["system"]["paper"] is True
+
+
+def test_dashboard_state_renders_through_real_dashboard(fresh_trained_hmm, full_config, synthetic_ohlcv, tmp_path):
+    """The actual integration point start_dashboard() relies on: whatever
+    get_dashboard_state() produces must be renderable by the real Dashboard,
+    not just shaped right in isolation.
+    """
+    from monitoring.dashboard import Dashboard
+
+    bot, _, _, _ = _build_bot(fresh_trained_hmm, full_config, tmp_path)
+    bot.process_bar("SPY", synthetic_ohlcv)
+    bot.position_tracker.open_position("SPY", qty=10, entry_price=500.0, stop_level=490.0)
+
+    text = Dashboard(full_config["monitoring"]).render_to_text(bot.get_dashboard_state())
+    assert "SPY" in text
+    assert "PAPER" in text
+
+
+def test_start_dashboard_runs_in_background_without_crashing(fresh_trained_hmm, full_config, synthetic_ohlcv, tmp_path):
+    bot, _, _, _ = _build_bot(fresh_trained_hmm, full_config, tmp_path)
+    bot.process_bar("SPY", synthetic_ohlcv)
+
+    thread = bot.start_dashboard(refresh_seconds=0.05)
+    try:
+        time.sleep(0.3)  # let it render a few frames
+        assert thread.is_alive()
+    finally:
+        pass  # daemon thread -- dies with the test process, nothing to join/stop
+
+
+def test_write_dashboard_snapshot_round_trips_get_dashboard_state(fresh_trained_hmm, full_config, synthetic_ohlcv, tmp_path):
+    import json
+
+    bot, _, _, _ = _build_bot(fresh_trained_hmm, full_config, tmp_path)
+    bot.process_bar("SPY", synthetic_ohlcv)
+
+    out_path = str(tmp_path / "dashboard_state.json")
+    bot.write_dashboard_snapshot(out_path)
+
+    with open(out_path) as f:
+        written = json.load(f)
+    assert written == bot.get_dashboard_state()
+    assert not os.path.exists(out_path + ".tmp")  # atomic rename leaves no temp file behind
+
+
+def test_start_json_dashboard_feed_runs_in_background_without_crashing(fresh_trained_hmm, full_config, synthetic_ohlcv, tmp_path):
+    bot, _, _, _ = _build_bot(fresh_trained_hmm, full_config, tmp_path)
+    bot.process_bar("SPY", synthetic_ohlcv)
+
+    out_path = str(tmp_path / "dashboard_state.json")
+    thread = bot.start_json_dashboard_feed(out_path, refresh_seconds=0.05)
+    try:
+        time.sleep(0.3)  # let it write a few frames
+        assert thread.is_alive()
+        assert os.path.exists(out_path)
+    finally:
+        pass  # daemon thread -- dies with the test process, nothing to join/stop

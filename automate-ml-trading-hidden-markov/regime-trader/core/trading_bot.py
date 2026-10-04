@@ -43,6 +43,7 @@ logger = logging.getLogger("regime_trader.main")
 
 DEFAULT_STATE_PATH = "state_snapshot.json"
 DEFAULT_MODEL_PATH = "hmm_model.pkl"
+DEFAULT_DASHBOARD_JSON_PATH = "dashboard_state.json"
 HMM_RETRAIN_MAX_AGE_DAYS = 7
 
 
@@ -454,6 +455,67 @@ class TradingBot:
                 "paper": self.alpaca_client.paper,
             },
         }
+
+    # ------------------------------------------------------------------
+    # Live dashboard
+    # ------------------------------------------------------------------
+
+    def start_dashboard(self, refresh_seconds: Optional[float] = None):
+        """Launch the live terminal dashboard in a background daemon thread,
+        repeatedly rendering get_dashboard_state(). Returns the started
+        Thread; it exits automatically when the main process does (daemon
+        thread), and run()/shutdown() don't need to manage it explicitly.
+
+        Runs in its OWN thread rather than the main one because both this
+        and run() block forever in their own way (rich.live.Live's refresh
+        loop here, market_data.run_stream()'s WebSocket loop there) — they
+        have to share the process, not take turns.
+        """
+        import threading
+
+        from monitoring.dashboard import Dashboard
+
+        dashboard = Dashboard(self.config.get("monitoring"))
+        thread = threading.Thread(
+            target=dashboard.run, args=(self.get_dashboard_state,), kwargs={"refresh_seconds": refresh_seconds},
+            daemon=True, name="regime-trader-dashboard",
+        )
+        thread.start()
+        return thread
+
+    def write_dashboard_snapshot(self, path: str = DEFAULT_DASHBOARD_JSON_PATH) -> None:
+        """Dump get_dashboard_state() to disk, atomically, for an out-of-process
+        UI (streamlit_app.py) that has no access to this object's in-memory
+        state. Same rationale as save_state_snapshot(), but for display rather
+        than crash recovery, so it's written much more frequently.
+        """
+        tmp_path = f"{path}.tmp"
+        with open(tmp_path, "w") as f:
+            json.dump(self.get_dashboard_state(), f, indent=2, default=str)
+        os.replace(tmp_path, path)
+
+    def start_json_dashboard_feed(
+        self, path: str = DEFAULT_DASHBOARD_JSON_PATH, refresh_seconds: Optional[float] = None
+    ):
+        """Launch a background daemon thread that periodically writes
+        write_dashboard_snapshot(). This is how streamlit_app.py (a separate
+        process, polling the file) sees near-live state without any direct
+        IPC channel into this running bot -- same constraint start_dashboard()
+        works around for the in-terminal rich UI, just via a file instead of
+        a shared Python object.
+        """
+        import threading
+
+        refresh_seconds = refresh_seconds or self.config.get("monitoring", {}).get("dashboard_refresh_seconds", 5)
+
+        def _loop() -> None:
+            while True:
+                self.write_dashboard_snapshot(path)
+                time.sleep(refresh_seconds)
+
+        thread = threading.Thread(target=_loop, daemon=True, name="regime-trader-json-feed")
+        thread.start()
+        return thread
 
     # ------------------------------------------------------------------
     # Shutdown
