@@ -1,0 +1,17 @@
+hmmlearn
+alpaca-trade-api
+alpaca-py
+pandas
+numpy
+scipy
+ta
+scikit-learn
+pyyaml
+python-dotenv
+websocket-client
+schedule
+rich
+yfinance  # demo.py only — free historical data, no API key needed
+streamlit  # dashboard_app.py only — web UI
+plotly  # dashboard_app.py only — web UI charts
+pytest  # for running tests/
