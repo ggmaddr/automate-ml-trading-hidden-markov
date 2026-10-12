@@ -10,6 +10,9 @@
     python main.py run --dashboard     # show the last saved state snapshot
     python main.py run --web-dashboard # feed dashboard_state.json for `streamlit run dashboard_app.py`
 
+    python main.py research --symbol GOOGL [--question "..."] [--lookback-days 7] [--force-refresh]
+                                    # Phase 10: grounded Gemini research (read-only, places no trades)
+
 `run` requires a real Alpaca account (paper is fine, and is the default —
 see config/settings.yaml's broker.paper_trading) and so cannot be
 exercised without one; core.trading_bot.TradingBot, which it wires
@@ -301,6 +304,225 @@ def cmd_run(args: argparse.Namespace) -> None:
     bot.run(config["broker"]["symbols"], timeframe=config["broker"]["timeframe"])
 
 
+def cmd_research(args: argparse.Namespace) -> None:
+    """Phase 10: grounded Gemini research. Read-only — places no trades and
+    touches no strategy/risk/HMM configuration."""
+    from monitoring.logger import get_research_logger
+    from research.config import load_research_config
+    from research.orchestrator import ResearchOrchestrator
+    from research.presentation import RELATIONSHIP_LABELS, STANCE_LABELS, age_label, quant_rows
+    from research.schemas import ResearchRequest
+
+    get_research_logger()
+    env = dict(os.environ)
+    if args.provider:
+        env["RESEARCH_PROVIDER"] = args.provider
+    if args.model:
+        env["RESEARCH_MODEL"] = args.model
+    if args.search:
+        env["RESEARCH_SEARCH"] = args.search
+    config = load_research_config(env=env)
+
+    if args.check:
+        from research.checks import run_checks
+
+        failures = 0
+        for result in run_checks(config):
+            mark = "[green]ok[/green]  " if result.ok else "[red]FAIL[/red]"
+            console.print(f"{mark} {result.name}: {result.detail}")
+            failures += 0 if result.ok else 1
+        sys.exit(1 if failures else 0)
+
+    if args.list_models:
+        from research.exceptions import ResearchError
+        from research.llm import build_llm
+
+        try:
+            for name in build_llm(config).list_models():
+                console.print(name)
+        except ResearchError as exc:
+            console.print(f"[red]{exc.user_message}[/red] {exc.detail}")
+            sys.exit(1)
+        return
+
+    if args.usage:
+        from research.usage import get_usage_summary, usage_lines
+
+        for line in usage_lines(config, get_usage_summary(config)):
+            console.print(f"- {line}", markup=False)
+        return
+
+    if not args.symbol:
+        console.print("[red]--symbol is required[/red]")
+        sys.exit(2)
+
+    request = ResearchRequest(
+        symbol=args.symbol, question=args.question,
+        lookback_days=args.lookback_days or config.default_lookback_days,
+        force_refresh=args.force_refresh, allow_without_quant=args.allow_without_quant,
+    )
+    outcome = ResearchOrchestrator(config).research(request)
+
+    if outcome.quant_context is not None:
+        qt = Table(title=f"{request.symbol}: quantitative snapshot (HMM)")
+        qt.add_column("metric")
+        qt.add_column("value")
+        for label, value in quant_rows(outcome.quant_context):
+            qt.add_row(label, value)
+        console.print(qt)
+
+    if not outcome.ok:
+        console.print(f"[red]Research unavailable[/red] ({outcome.error.code}): {outcome.error.message}")
+        console.print("[dim]The quantitative system is unaffected; no orders were placed.[/dim]")
+        sys.exit(1)
+
+    result = outcome.result
+    brief, comparison = result.brief, result.comparison
+    console.rule(f"[bold]Research: {brief.symbol}[/bold]")
+    console.print(f"[bold]Question:[/bold] {brief.question}")
+    console.print(f"[bold]Summary:[/bold] {brief.summary}")
+    console.print(
+        f"[bold]Evidence:[/bold] {STANCE_LABELS[brief.evidence_stance]} · confidence {brief.overall_confidence:.0%} · "
+        f"{brief.source_count} sources"
+    )
+    for title, items in (("Catalysts", brief.catalysts), ("Risks", brief.risks), ("Recent events", brief.recent_events)):
+        if items:
+            console.print(f"\n[bold]{title}[/bold]")
+            for e in items:
+                console.print(f"  - [{e.category}/{e.impact}] {e.claim}\n      {e.source_title}: {e.source_url}")
+    for title, items in (("Conflicting evidence", brief.conflicting_evidence), ("Unknowns", brief.unknowns)):
+        if items:
+            console.print(f"\n[bold]{title}[/bold]")
+            for item in items:
+                console.print(f"  - {item}")
+
+    console.rule("[bold]Quant vs research[/bold]")
+    console.print(f"[bold]Relationship:[/bold] {RELATIONSHIP_LABELS[comparison.relationship]}")
+    console.print(comparison.explanation)
+    console.print(f"[bold]Human review recommended:[/bold] {comparison.human_review_recommended}")
+
+    console.rule("[bold]Sources[/bold]")
+    seen: set[str] = set()
+    for e in brief.catalysts + brief.risks + brief.recent_events:
+        if e.source_url not in seen:
+            seen.add(e.source_url)
+            console.print(f"  {e.source_title}: {e.source_url}")
+
+    status = "CACHE HIT" if result.cache_hit else "fresh"
+    u = result.diagnostics.usage
+    console.print(
+        "[dim]Usage: free (cache hit)[/dim]" if result.cache_hit else
+        f"[dim]Usage: {u.grounded_searches} grounded searches, {u.input_tokens:,} in / {u.output_tokens:,} out tokens, est. ≈${u.estimated_cost_usd:.3f}"
+        + (f", {u.finance_searches} SerpApi Google Finance search" if u.finance_searches else "") + "[/dim]"
+    )
+    console.print(
+        f"\n[dim]{status} · generated {age_label(brief.generated_at)} ({brief.generated_at:%Y-%m-%d %H:%M} UTC) · "
+        f"{result.latency_ms} ms · {result.diagnostics.provider}/{result.diagnostics.model} · search {result.diagnostics.search_provider} · prompt v{result.diagnostics.prompt_version}. "
+        "Informational only — not financial advice; no orders placed.[/dim]"
+    )
+
+
+def _quant_snapshot_or_none(symbol: str):
+    """HMM snapshot via the read-only research tools; None (with a note) if unavailable."""
+    from research.tools.hmm_tools import DEFAULT_MODEL_PATH, HMMRuntimeReader
+    from research.exceptions import ToolError
+
+    try:
+        return HMMRuntimeReader(DEFAULT_MODEL_PATH).get_hmm_snapshot(symbol)
+    except ToolError as exc:
+        console.print(f"[yellow]HMM snapshot unavailable: {exc.detail}[/yellow]")
+        return None
+
+
+def cmd_research_prompt(args: argparse.Namespace) -> None:
+    """No-API workflow, step 1: print (and copy) a prompt to paste into Google Finance Deep Search."""
+    import subprocess
+
+    from research.config import load_research_config
+    from research.manual import build_deep_search_prompt
+    from research.schemas import ResearchRequest
+
+    request = ResearchRequest(
+        symbol=args.symbol, question=args.question,
+        lookback_days=args.lookback_days or load_research_config().default_lookback_days,
+    )
+    prompt = build_deep_search_prompt(request.symbol, request.question, request.lookback_days)
+    console.print(prompt, markup=False, highlight=False)
+    try:
+        subprocess.run(["pbcopy"], input=prompt.encode(), check=True)
+        console.print("\n[dim]Copied to clipboard. Paste it into Google Finance Deep Search, then run `research-import`.[/dim]")
+    except (OSError, subprocess.CalledProcessError):
+        console.print("\n[dim]Copy the text above into Google Finance Deep Search, then run `research-import`.[/dim]")
+
+
+def cmd_research_import(args: argparse.Namespace) -> None:
+    """No-API workflow, step 2: save the report you copied from Google Finance, with the HMM snapshot."""
+    import subprocess
+
+    from research.config import load_research_config
+    from research.manual import extract_domains, save_manual_report
+    from research.prompts import default_question
+    from research.schemas import ResearchRequest
+
+    request = ResearchRequest(symbol=args.symbol, question=args.question, lookback_days=args.lookback_days or load_research_config().default_lookback_days)
+    if args.file:
+        with open(args.file) as f:
+            report = f.read()
+    else:  # default: clipboard
+        try:
+            report = subprocess.run(["pbpaste"], capture_output=True, check=True).stdout.decode()
+        except (OSError, subprocess.CalledProcessError):
+            console.print("[red]Could not read the clipboard; pass --file report.txt instead.[/red]")
+            sys.exit(1)
+    if not report.strip():
+        console.print("[red]Report is empty.[/red]")
+        sys.exit(1)
+
+    quant = _quant_snapshot_or_none(request.symbol)
+    question = request.question or default_question(request.symbol, request.lookback_days)
+    path = save_manual_report(request.symbol, question, report, quant)
+    console.print(f"Saved briefing: {path}")
+    if quant is not None:
+        from research.prompts import summarize_quant_line
+
+        console.print(f"[bold]HMM:[/bold] {summarize_quant_line(quant)}")
+    domains = extract_domains(report)
+    console.print(f"[bold]Source domains found in report:[/bold] {', '.join(domains) or '(none — ask Deep Search for sources)'}")
+    if args.compare:
+        _compare_pasted_report(request, report, path, quant)
+    else:
+        console.print("[dim]Informational only. Add --compare to compare it with this system's own research.[/dim]")
+
+
+def _compare_pasted_report(request, report: str, saved_path, quant) -> None:
+    """Run the agent's own research (cache-aware) and compare it with the pasted report."""
+    from research.config import load_research_config
+    from research.exceptions import ResearchError
+    from research.llm.base import Deadline
+    from research.orchestrator import ResearchOrchestrator
+    from research.reference import compare_with_reference, format_markdown
+
+    config = load_research_config()
+    orchestrator = ResearchOrchestrator(config)
+    outcome = orchestrator.research(request)
+    if not outcome.ok:
+        console.print(f"[red]Could not run the agent's research for the comparison[/red] ({outcome.error.code}): {outcome.error.message}")
+        return
+    try:
+        comparison = compare_with_reference(
+            orchestrator.get_llm(), outcome.result.quant_context, outcome.result.brief, report,
+            Deadline(config.overall_timeout_seconds), outcome.request_id,
+        )
+    except ResearchError as exc:
+        console.print(f"[red]Comparison failed[/red] ({exc.code}): {exc.message}")
+        return
+    markdown = format_markdown(comparison)
+    with open(saved_path, "a") as f:
+        f.write(markdown)
+    console.print(markdown, markup=False, highlight=False)
+    console.print(f"[dim]Appended to {saved_path}[/dim]")
+
+
 def _show_last_snapshot() -> None:
     """Best-effort `--dashboard`: there is no live IPC between a running bot
     and this command, so this renders the LAST SAVED state_snapshot.json
@@ -347,6 +569,45 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Continuously write dashboard_state.json for the Streamlit UI (see `streamlit run dashboard_app.py`)",
     )
     run_parser.set_defaults(func=cmd_run)
+
+    research_parser = subparsers.add_parser(
+        "research", help="Grounded Gemini market research (Phase 10; read-only, places no trades)"
+    )
+    research_parser.add_argument("--symbol", help="Ticker to research, e.g. GOOGL")
+    research_parser.add_argument("--question", help="Optional research question")
+    research_parser.add_argument("--lookback-days", type=int, help="Research horizon in days (default: research.default_lookback_days)")
+    research_parser.add_argument("--force-refresh", action="store_true", help="Bypass the result cache")
+    research_parser.add_argument(
+        "--allow-without-quant", action="store_true", help="Still research if no HMM snapshot can be loaded"
+    )
+    research_parser.add_argument("--provider", choices=["ollama", "openai", "anthropic", "gemini"], help="Override research.provider")
+    research_parser.add_argument("--model", help="Override the model id for the chosen provider")
+    research_parser.add_argument("--search", choices=["auto", "searxng", "gemini_grounding"], help="Override research.search_provider")
+    research_parser.add_argument("--check", action="store_true", help="Probe the configured LLM + search backends and exit")
+    research_parser.add_argument("--usage", action="store_true", help="Show this month's Gemini usage, free-tier limits and estimated spend, then exit")
+    research_parser.add_argument("--list-models", action="store_true", help="List Gemini models your API key can use and exit")
+    research_parser.set_defaults(func=cmd_research)
+
+    prompt_parser = subparsers.add_parser(
+        "research-prompt", help="No-API: print/copy a prompt to paste into Google Finance Deep Search by hand"
+    )
+    prompt_parser.add_argument("--symbol", required=True)
+    prompt_parser.add_argument("--question")
+    prompt_parser.add_argument("--lookback-days", type=int)
+    prompt_parser.set_defaults(func=cmd_research_prompt)
+
+    import_parser = subparsers.add_parser(
+        "research-import", help="No-API: save a Google Finance report (clipboard or --file) with the HMM snapshot"
+    )
+    import_parser.add_argument("--symbol", required=True)
+    import_parser.add_argument("--question")
+    import_parser.add_argument("--lookback-days", type=int)
+    import_parser.add_argument("--file", help="Read the report from a file instead of the clipboard")
+    import_parser.add_argument(
+        "--compare", action="store_true",
+        help="Also run this system's own research and compare it with the pasted report (uses the configured provider)",
+    )
+    import_parser.set_defaults(func=cmd_research_import)
 
     return parser
 

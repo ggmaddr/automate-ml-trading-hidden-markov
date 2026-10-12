@@ -1,0 +1,14 @@
+# Self-hosted SearXNG for the research agent (no API key, no cost).
+#   docker compose -f ops/docker-compose.searxng.yml up -d
+# Bound to localhost only. The research agent reads http://localhost:8888/search?format=json
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: regime-trader-searxng
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    restart: unless-stopped

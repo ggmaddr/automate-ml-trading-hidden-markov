@@ -1,0 +1,24 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [{"text": "Alphabet reported quarterly results ahead of expectations, with Cloud revenue growing strongly. Regulators in the EU opened a new probe into ad-tech practices. Analysts disagree on the near-term capex outlook."}]
+      },
+      "grounding_metadata": {
+        "web_search_queries": ["GOOGL latest earnings results", "Alphabet regulatory probe EU ad tech"],
+        "grounding_chunks": [
+          {"web": {"uri": "https://www.reuters.com/technology/alphabet-results-2026-10-01/?utm_source=x", "title": "reuters.com"}},
+          {"web": {"uri": "https://www.sec.gov/Archives/edgar/data/1652044/10q.htm", "title": "sec.gov"}},
+          {"web": {"uri": "https://reuters.com/technology/alphabet-results-2026-10-01", "title": "reuters.com"}},
+          {"web": {"uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123", "title": "cnbc.com"}}
+        ],
+        "grounding_supports": [
+          {"segment": {"start_index": 0, "end_index": 80, "text": "Alphabet reported quarterly results ahead of expectations, with Cloud revenue growing strongly."}, "grounding_chunk_indices": [0, 1]},
+          {"segment": {"start_index": 81, "end_index": 150, "text": "Regulators in the EU opened a new probe into ad-tech practices."}, "grounding_chunk_indices": [2, 3]},
+          {"segment": {"start_index": 151, "end_index": 200, "text": "Analysts disagree on the near-term capex outlook."}, "grounding_chunk_indices": [3]}
+        ]
+      }
+    }
+  ]
+}

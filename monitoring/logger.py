@@ -105,3 +105,9 @@ def get_alerts_logger(log_dir: str = DEFAULT_LOG_DIR) -> logging.Logger:
 
 def get_regime_logger(log_dir: str = DEFAULT_LOG_DIR) -> logging.Logger:
     return get_logger("regime_trader.regime", "regime.log", log_dir=log_dir)
+
+
+def get_research_logger(log_dir: str = DEFAULT_LOG_DIR) -> logging.Logger:
+    """Attach the rotating JSON file handler for the Phase 10 research layer
+    (`research.*` events — see research/logging_util.py)."""
+    return get_logger("regime_trader.research", "research.log", log_dir=log_dir)

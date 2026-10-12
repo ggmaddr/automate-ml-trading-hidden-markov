@@ -1,0 +1,17 @@
+{
+  "summary": "Alphabet beat quarterly expectations on Cloud strength, while a new EU ad-tech probe and a capex debate add uncertainty.",
+  "catalysts": [
+    {"claim": "Quarterly results beat expectations with strong Cloud revenue growth.", "category": "earnings", "impact": "positive", "source_id": "S1", "published_at": "2026-10-01", "confidence": 0.9},
+    {"claim": "Cloud revenue growth was strong in the latest filing.", "category": "cloud", "impact": "positive", "source_id": "S2", "published_at": null, "confidence": 0.8}
+  ],
+  "risks": [
+    {"claim": "EU regulators opened a new probe into ad-tech practices.", "category": "regulation", "impact": "negative", "source_id": "S3", "published_at": "not a date", "confidence": 0.7}
+  ],
+  "recent_events": [
+    {"claim": "An unsupported rumor about a product delay.", "category": "product", "impact": "unclear", "source_id": "S99", "published_at": null, "confidence": 0.4}
+  ],
+  "conflicting_evidence": ["Analysts disagree on whether near-term capex will pressure margins."],
+  "unknowns": ["Timing and size of any EU penalty."],
+  "evidence_stance": "mixed",
+  "overall_confidence": 0.7
+}

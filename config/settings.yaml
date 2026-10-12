@@ -67,3 +67,56 @@ backtest:
 monitoring:
   dashboard_refresh_seconds: 5
   alert_rate_limit_minutes: 15    # minimum time between repeated alerts of the same kind
+
+# Phase 10: grounded Gemini research agent (read-only; see README "Phase 10").
+# The Gemini model name lives here and ONLY here (GEMINI_MODEL env var overrides it).
+research:
+  enabled: true
+  # Which model writes the research. Switch with this line or RESEARCH_PROVIDER=ollama|openai|anthropic|gemini.
+  provider: ollama
+  models:                          # model id per provider (the only place model names live)
+    ollama: qwen3:8b               # local & free; larger models research better (see README)
+    gemini: gemini-3.8-flash
+    openai: ""                     # set your own, e.g. a current GPT model id
+    anthropic: ""                  # set your own, e.g. a current Claude model id
+  base_url: null                   # override endpoint (Ollama default http://localhost:11434; OpenAI-compatible servers)
+  num_ctx: 16384                   # Ollama context window
+  think: false                     # Ollama thinking models: off = faster, steadier JSON
+  api_key_env: null                # default env var per provider (OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY)
+  # Web search for providers without built-in search. "auto" = gemini -> Google grounding, others -> SearXNG.
+  search_provider: auto
+  search_base_url: http://localhost:8888   # docker compose -f ops/docker-compose.searxng.yml up -d
+  # Optional: add Google Finance's news list for the ticker as an evidence source (SerpApi, needs SERPAPI_API_KEY;
+  # free plan = 250 searches/month; 1 search per research run). Not Deep Search, which has no API.
+  finance_news_provider: none      # none | serpapi
+  finance_exchanges: [NASDAQ, NYSE]
+  serpapi_free_searches_per_month: 250
+  search_max_results: 8
+  fetch_top_n: 4                   # pages fetched per round for fuller text (0 = search snippets only)
+  max_internal_tool_calls: 5
+  max_search_rounds: 2
+  max_sources: 12
+  min_sources: 3
+  cache_ttl_minutes: 360
+  max_retries: 2
+  request_timeout_seconds: 300     # local models are slow; hosted APIs can use 90
+  overall_timeout_seconds: 900     # hard cap across every model/search call in one research run
+  default_lookback_days: 14
+  max_lookback_days: 90
+  enable_url_context: true         # gemini only
+  enable_google_search: true       # gemini only
+  resolve_source_redirects: true   # gemini only: grounding redirect links -> publisher URLs
+  # Usage guard (estimates; provider billing is the source of truth). Ollama is always $0.
+  # Gemini 3.x Google Search grounding is NOT on the free tier: it needs a billing-enabled key, with the first
+  # 5,000 search requests/month free, then $14/1,000.
+  free_grounded_searches_per_month: 5000
+  grounded_search_price_per_1000_usd: 14.0
+  input_price_per_million_tokens_usd: 0.75     # gemini-3.8-flash, through 2026 (doubles Jan 2027)
+  output_price_per_million_tokens_usd: 3.75
+  pricing: {}                      # openai/anthropic: {openai: {input_per_mtok: 0.0, output_per_mtok: 0.0}}
+  monthly_budget_usd: 5.0          # refuse new paid runs once estimated spend reaches this; 0 disables
+  cache_path: research_cache.db
+  # Hard rails: these cannot be switched on (config validation rejects `true`).
+  allow_broker_tools: false
+  allow_strategy_mutation: false
+  allow_risk_mutation: false

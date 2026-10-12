@@ -18,3 +18,7 @@ personal_notes/
 backtest_results/
 state_snapshot.json
 dashboard_state.json
+research_cache.db
+evaluation/results/
+
+evaluation/google_finance_reference/*.md
