@@ -412,8 +412,7 @@ def cmd_research(args: argparse.Namespace) -> None:
     u = result.diagnostics.usage
     console.print(
         "[dim]Usage: free (cache hit)[/dim]" if result.cache_hit else
-        f"[dim]Usage: {u.grounded_searches} grounded searches, {u.input_tokens:,} in / {u.output_tokens:,} out tokens, est. ≈${u.estimated_cost_usd:.3f}"
-        + (f", {u.finance_searches} SerpApi Google Finance search" if u.finance_searches else "") + "[/dim]"
+        f"[dim]Usage: {u.grounded_searches} grounded searches, {u.input_tokens:,} in / {u.output_tokens:,} out tokens, est. ≈${u.estimated_cost_usd:.3f}[/dim]"
     )
     console.print(
         f"\n[dim]{status} · generated {age_label(brief.generated_at)} ({brief.generated_at:%Y-%m-%d %H:%M} UTC) · "

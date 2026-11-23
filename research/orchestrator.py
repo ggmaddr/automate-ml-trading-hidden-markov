@@ -269,7 +269,6 @@ class ResearchOrchestrator:
         used = self._consumed()
         diagnostics.usage = ResearchUsage(
             input_tokens=used.input_tokens, output_tokens=used.output_tokens, grounded_searches=used.grounded_searches,
-            finance_searches=used.finance_searches,
             estimated_cost_usd=estimate_run_cost_usd(
                 cfg, used.input_tokens, used.output_tokens, used.grounded_searches, month.grounded_searches
             ),
@@ -364,7 +363,7 @@ class ResearchOrchestrator:
     def _usage_kwargs(self) -> dict:
         used = self._consumed()
         return {"input_tokens": used.input_tokens, "output_tokens": used.output_tokens,
-                "grounded_searches": used.grounded_searches, "finance_searches": used.finance_searches}
+                "grounded_searches": used.grounded_searches}
 
     def _consumed(self):
         """Gemini consumption of the current run (zero if it never reached Gemini)."""

@@ -86,11 +86,6 @@ research:
   # Web search for providers without built-in search. "auto" = gemini -> Google grounding, others -> SearXNG.
   search_provider: auto
   search_base_url: http://localhost:8888   # docker compose -f ops/docker-compose.searxng.yml up -d
-  # Optional: add Google Finance's news list for the ticker as an evidence source (SerpApi, needs SERPAPI_API_KEY;
-  # free plan = 250 searches/month; 1 search per research run). Not Deep Search, which has no API.
-  finance_news_provider: none      # none | serpapi
-  finance_exchanges: [NASDAQ, NYSE]
-  serpapi_free_searches_per_month: 250
   search_max_results: 8
   fetch_top_n: 4                   # pages fetched per round for fuller text (0 = search snippets only)
   max_internal_tool_calls: 5

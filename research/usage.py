@@ -64,7 +64,6 @@ class UsageSummary:
     input_tokens: int
     output_tokens: int
     grounded_searches: int
-    finance_searches: int
     free_allowance: int
     free_remaining: int
     gemini_runs: int
@@ -91,7 +90,6 @@ def summarize_usage(config: ResearchConfig, month: MonthUsage) -> UsageSummary:
         input_tokens=month.input_tokens,
         output_tokens=month.output_tokens,
         grounded_searches=month.grounded_searches,
-        finance_searches=month.finance_searches,
         free_allowance=config.free_grounded_searches_per_month,
         free_remaining=free_remaining,
         gemini_runs=month.gemini_runs,
@@ -112,14 +110,7 @@ def get_usage_summary(config: ResearchConfig, cache: Optional[ResearchCache] = N
 
 def usage_lines(config: ResearchConfig, s: UsageSummary) -> list[str]:
     """Human-readable lines for the UI/CLI."""
-    lines = _provider_lines(config, s)
-    if config.finance_news_provider == "serpapi":
-        lines.insert(0, (
-            f"SerpApi Google Finance searches this month: {s.finance_searches:,} of "
-            f"{config.serpapi_free_searches_per_month:,} on the free plan (1 per research run; SerpApi doesn't bill its "
-            "cached results, so this slightly overcounts). Paid plans start at $25/month for 1,000 searches."
-        ))
-    return lines
+    return _provider_lines(config, s)
 
 
 def _provider_lines(config: ResearchConfig, s: UsageSummary) -> list[str]:

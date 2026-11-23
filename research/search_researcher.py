@@ -14,7 +14,7 @@ from datetime import date
 from typing import Optional
 
 from research.config import ResearchConfig
-from research.exceptions import ResearchError, SchemaValidationError
+from research.exceptions import SchemaValidationError
 from research.grounding import GroundedPassage, GroundedSource, GroundingData, host_of, normalize_url
 from research.llm.base import Deadline, LLMBackend
 from research.logging_util import log_event
@@ -43,36 +43,12 @@ class ToolSearchResearcher:
         config: ResearchConfig,
         search_provider: Optional[SearchProvider] = None,
         page_fetcher: Optional[PageFetcher] = None,
-        finance_news=None,
     ) -> None:
         self.llm = llm
         self.config = config
         self.search = search_provider or build_search_provider(config)
-        self.finance_news = finance_news if finance_news is not None else self._build_finance_news(config)
         self.name = self.search.name
         self.fetcher = page_fetcher or PageFetcher()
-
-    @staticmethod
-    def _build_finance_news(config: ResearchConfig):
-        if config.finance_news_provider != "serpapi":
-            return None
-        from research.search.serpapi_finance import SerpApiFinanceNews
-
-        return SerpApiFinanceNews(config)
-
-    def _finance_hits(self, symbol: str, deadline: Deadline, request_id: str) -> list[SearchHit]:
-        """Google Finance's news list for the ticker (SerpApi). Auxiliary: any failure is logged and skipped."""
-        if self.finance_news is None:
-            return []
-        before = getattr(self.finance_news, "searches", 0)
-        try:
-            hits = self.finance_news.news(symbol, max_results=self.config.search_max_results, deadline=deadline)
-        except ResearchError as exc:
-            log_event("research.search.finance_news_failed", level=30, request_id=request_id, symbol=symbol,
-                      error_type=exc.code)
-            hits = []
-        self.llm.usage.finance_searches += getattr(self.finance_news, "searches", before) - before
-        return hits
 
     # ------------------------------------------------------------------
 
@@ -105,12 +81,6 @@ class ToolSearchResearcher:
             queries = self._plan_queries(symbol, question, lookback_days, today, round_no, deadline, request_id)
 
             hits: list[SearchHit] = []
-            if round_no == 1:                      # Google Finance news first: curated, dated, real links
-                for hit in self._finance_hits(symbol, deadline, request_id):
-                    key = normalize_url(hit.url)
-                    if key not in seen_urls:
-                        seen_urls.add(key)
-                        hits.append(hit)
             for query in queries:
                 for hit in self.search.search(
                     query, max_results=cfg.search_max_results, lookback_days=lookback_days, deadline=deadline
@@ -119,7 +89,7 @@ class ToolSearchResearcher:
                     if key not in seen_urls:
                         seen_urls.add(key)
                         hits.append(hit)
-            hits = hits[: cfg.search_max_results + (cfg.search_max_results // 2 if round_no == 1 and self.finance_news else 0)]
+            hits = hits[: cfg.search_max_results]
             if not hits:
                 log_event("research.search.completed", request_id=request_id, symbol=symbol, round=round_no,
                           source_count=0, query_count=len(queries))

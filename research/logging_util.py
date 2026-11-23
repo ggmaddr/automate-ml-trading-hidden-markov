@@ -17,7 +17,7 @@ _logger = logging.getLogger(LOGGER_NAME)
 
 # Env vars whose VALUES must never reach a log line or a prompt.
 _SECRET_ENV_VARS = (
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "SERPAPI_API_KEY", "ALPACA_API_KEY", "ALPACA_SECRET_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ALPACA_API_KEY", "ALPACA_SECRET_KEY",
 )
 _KEY_PATTERN = re.compile(r"(?:AIza[0-9A-Za-z_\-]{20,}|sk-(?:ant-)?[0-9A-Za-z_\-]{20,})")
 

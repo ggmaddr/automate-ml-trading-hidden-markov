@@ -193,7 +193,6 @@ class ResearchUsage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     grounded_searches: int = 0
-    finance_searches: int = 0
     estimated_cost_usd: float = 0.0
 
 

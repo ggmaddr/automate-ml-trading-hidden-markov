@@ -50,17 +50,15 @@ class UsageCounters:
     input_tokens: int = 0
     output_tokens: int = 0
     grounded_searches: int = 0
-    finance_searches: int = 0      # SerpApi Google Finance searches
 
     def snapshot(self) -> "UsageCounters":
-        return UsageCounters(self.input_tokens, self.output_tokens, self.grounded_searches, self.finance_searches)
+        return UsageCounters(self.input_tokens, self.output_tokens, self.grounded_searches)
 
     def since(self, earlier: "UsageCounters") -> "UsageCounters":
         return UsageCounters(
             self.input_tokens - earlier.input_tokens,
             self.output_tokens - earlier.output_tokens,
             self.grounded_searches - earlier.grounded_searches,
-            self.finance_searches - earlier.finance_searches,
         )
 
 

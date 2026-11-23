@@ -1,42 +1,44 @@
 """Design tokens for the "editorial lab" look — the single source of truth.
 
-Colors were sampled from the reference screenshots (canvas #F4F9FA, headline
-ink #244248, section teal #4A838C, headline-period teal #60B0B3, chart teal
-#7CB3BC, sand #C6B58E, navy/teal/gold bars from the core+sleeve slide). Two
-deliberate departures keep text accessible (WCAG AA, 4.5:1): the screenshots'
-mono labels and small grey text are far too light, so `LABEL` and `MUTED` are
-darker than the originals.
+Colorway 3: the project's own brand colors — blue #2973B2, aqua #0CC0DF, and
+a light-yellow/cream background #F3F2EC. Variable names are unchanged from
+earlier colorways so every other file (ui/theme.py, ui/charts.py, ui/svg.py,
+ui/widgets/) needs no edits — only the hex values moved. One deliberate
+departure keeps text accessible (WCAG AA, 4.5:1): the brand blue itself is a
+hair under 4.5:1 on the cream canvas, so `TEAL_DEEP` (used for small link
+text) is a slightly deepened shade of it; `TEAL` keeps the exact brand blue
+for headings/large text/chart lines, where that's not required.
 """
 
 from __future__ import annotations
 
 # ---- surfaces ---------------------------------------------------------------
-CANVAS = "#F4F9FA"       # page background
-CARD = "#FBFDFD"         # card surface
-CARD_ALT = "#EEF5F6"     # inset / hover surface
-HAIRLINE = "#CBD9DB"     # borders and rules
-GRID = "#E1EBED"         # chart grid lines
+CANVAS = "#F3F2EC"       # page background (brand light yellow/cream)
+CARD = "#FBFAF6"         # card surface
+CARD_ALT = "#ECEAE0"     # inset / hover surface
+HAIRLINE = "#DAD6CA"     # borders and rules
+GRID = "#E6E2D5"         # chart grid lines
 
 # ---- ink --------------------------------------------------------------------
-INK = "#244248"          # headlines, primary text
-TEAL = "#4A838C"         # section titles, links, primary series
-TEAL_DEEP = "#2F6B74"    # text-safe teal for small copy
-ACCENT = "#60B0B3"       # the teal period after headlines, highlights (decorative)
-BODY = "#3F5A60"         # body copy
-MUTED = "#5A6E74"        # secondary copy (AA on CANVAS)
-LABEL = "#5C7078"        # monospace eyebrow labels (AA on CANVAS)
+INK = "#1C3350"          # headlines, primary text (deep navy)
+TEAL = "#2973B2"         # section titles, links, primary series (brand blue)
+TEAL_DEEP = "#235F8E"    # text-safe shade of the brand blue, for small copy
+ACCENT = "#0CC0DF"       # the period after headlines, highlights (decorative, brand aqua)
+BODY = "#30465F"         # body copy
+MUTED = "#5B6B7C"        # secondary copy (AA on CANVAS)
+LABEL = "#5E6F82"        # monospace eyebrow labels (AA on CANVAS)
 
 # ---- data series ------------------------------------------------------------
-SERIES_TEAL = "#7CB3BC"
-SERIES_SAND = "#C6B58E"
-SERIES_SLATE = "#8AA4B5"
-NAVY = "#214162"
-TEAL_BAR = "#459898"
-GOLD = "#B18842"
+SERIES_TEAL = "#0CC0DF"  # brand aqua
+SERIES_SAND = "#EC635E"  # coral (named _SAND for the unaffected callers; now the coral accent)
+SERIES_SLATE = "#6FA8D6" # light steel blue
+NAVY = "#16304C"
+TEAL_BAR = "#2973B2"
+GOLD = "#D9A646"         # warm amber, used only as a 6th/7th palette slot in multi-series charts
 
-# ---- status (kept distinct from brand teal) -----------------------------------
+# ---- status (kept distinct from the brand blue) -----------------------------------
 OK = "#2E7D5B"
-WARN = "#9A6B12"
+WARN = "#946610"
 HALT = "#B23A3A"
 
 SANS = "'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif"

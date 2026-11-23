@@ -28,7 +28,7 @@ def as_img(svg_markup: str, alt: str, css_class: str = "", style: str = "") -> s
     )
 
 
-_TONE_COLORS = {"ok": "#7FAEB6", "warn": "#C8A862", "halt": t.HALT, "neutral": "#96B7BE"}
+_TONE_COLORS = {"ok": "#5FA8C4", "warn": "#C9A054", "halt": t.HALT, "neutral": "#9FB3C8"}
 
 # 24x24 line icons (stroke only), drawn to echo the thin-line illustrations in the reference style.
 _ICONS = {

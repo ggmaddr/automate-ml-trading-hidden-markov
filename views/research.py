@@ -170,8 +170,6 @@ def _page() -> None:
         if result.cache_hit:
             lines.append(f"This request: free (served from cache; original run used {u.grounded_searches} grounded searches, ≈${u.estimated_cost_usd:.3f})")
         else:
-            if u.finance_searches:
-                lines.append(f"SerpApi Google Finance searches this run: {u.finance_searches}")
             lines.append(f"This run: {u.grounded_searches} grounded searches, {u.input_tokens:,} input / "
                          f"{u.output_tokens:,} output tokens, estimated ≈${u.estimated_cost_usd:.3f}")
         lines.append("Search queries: " + (", ".join(brief.search_queries) or "(none)"))

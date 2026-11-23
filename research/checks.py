@@ -54,12 +54,4 @@ def run_checks(config: ResearchConfig) -> list[CheckResult]:
             results.append(CheckResult("search", True, build_search_provider(config).check()))
         except ResearchError as exc:
             results.append(CheckResult("search", False, exc.message))
-    if config.finance_news_provider == "serpapi":
-        try:
-            from research.search.serpapi_finance import SerpApiFinanceNews
-
-            results.append(CheckResult("finance_news", True, "SerpApi Google Finance: " + SerpApiFinanceNews(config).check()
-                                       + " (uses 1 of your SerpApi searches)"))
-        except ResearchError as exc:
-            results.append(CheckResult("finance_news", False, exc.message))
     return results

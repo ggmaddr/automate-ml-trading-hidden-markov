@@ -37,10 +37,6 @@ class ResearchConfig(BaseModel):
     search_provider: Literal["auto", "searxng", "gemini_grounding"] = "auto"
     search_base_url: str = "http://localhost:8888"
     search_categories: list[str] = Field(default_factory=lambda: ["news", "general"])   # SearXNG categories, in priority order
-    # Optional extra evidence source: Google Finance's news list for the ticker, via SerpApi (needs SERPAPI_API_KEY).
-    finance_news_provider: Literal["none", "serpapi"] = "none"
-    finance_exchanges: list[str] = Field(default_factory=lambda: ["NASDAQ", "NYSE"])   # tried in order for TICKER:EXCHANGE
-    serpapi_free_searches_per_month: int = Field(250, ge=0)
     search_max_results: int = Field(8, ge=1, le=30)
     fetch_top_n: int = Field(4, ge=0, le=10)           # pages fetched per search round (0 = snippets only)
     # Optional per-provider token prices for the usage estimate: {provider: {input_per_mtok, output_per_mtok}}
