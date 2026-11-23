@@ -1,0 +1,10 @@
+{
+  "research_summary": "Mixed evidence: positive earnings, a regulatory probe, and a capex debate.",
+  "relationship": "orthogonal",
+  "agreements": [],
+  "contradictions": [],
+  "information_quant_model_cannot_see": ["A discrete EU regulatory probe is not represented in price/volume features."],
+  "information_research_cannot_establish": ["Whether market behaviour has already priced the news."],
+  "human_review_recommended": false,
+  "explanation": "The HMM describes observed volatility behaviour; the research identifies discrete events outside its feature set."
+}

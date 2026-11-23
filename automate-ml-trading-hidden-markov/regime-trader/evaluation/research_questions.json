@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": "GOOGL",
+    "question": "What material developments in the last 14 days could affect the company over the next quarter?"
+  },
+  {
+    "symbol": "GOOGL",
+    "question": "What changed after the latest earnings report, and how did guidance move?"
+  },
+  {
+    "symbol": "GOOGL",
+    "question": "What regulatory or antitrust developments are pending that could affect the company?"
+  },
+  {
+    "symbol": "NVDA",
+    "question": "What recent developments affect data-center demand, supply constraints, competition, or export risk?"
+  },
+  {
+    "symbol": "NVDA",
+    "question": "What did management say about guidance and customer concentration in the latest earnings?"
+  },
+  {
+    "symbol": "MSFT",
+    "question": "What recent AI and cloud developments are material to the company's near-term outlook?"
+  },
+  {
+    "symbol": "MSFT",
+    "question": "What are the most important partnership or competition developments affecting Azure?"
+  },
+  {
+    "symbol": "AAPL",
+    "question": "What recent product, supply-chain, or regulatory developments could affect the company's next quarter?"
+  },
+  {
+    "symbol": "AMZN",
+    "question": "What recent developments in AWS growth, retail margins, or capex are material?"
+  },
+  {
+    "symbol": "META",
+    "question": "What recent developments in advertising demand, AI spending, or regulation are material?"
+  },
+  {
+    "symbol": "AMD",
+    "question": "What recent developments in data-center GPU demand and competition with NVDA are material?"
+  },
+  {
+    "symbol": "TSLA",
+    "question": "What recent developments in deliveries, margins, autonomy, or regulation are material?"
+  }
+]

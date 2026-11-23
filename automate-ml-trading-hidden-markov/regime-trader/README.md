@@ -8,7 +8,7 @@ classification. It does not predict price direction. It is long-only, built
 on Alpaca (paper trading by default), and was built in nine phases, each
 reviewed and tested before the next began.
 
-> **Status:** All 9 phases complete. 169 automated tests passing, 1
+> **Status:** All 9 phases complete, plus the optional Phase 10 research sidecar. a few hundred automated tests passing, 1
 > intentionally skipped (requires a real Alpaca paper account — see
 > [Paper-trading verification](#paper-trading-verification)).
 
@@ -98,7 +98,9 @@ alert manager, and a live terminal dashboard).
 | `monitoring/dashboard.py` | Live terminal dashboard (rich) | 8 |
 | `monitoring/alerts.py` | Rate-limited alerts: console/log/email/webhook | 8 |
 | `main.py` | CLI: `backtest`, `run` (live/paper, `--dry-run`, `--train-only`, `--dashboard`, `--live-dashboard`, `--web-dashboard`) | 4, 7 |
-| `dashboard_app.py` | Streamlit web UI: live bot state + a backtest-results explorer | 8 |
+| `dashboard_app.py` | Streamlit web UI: live bot state, a backtest-results explorer, and the AI Research view | 8, 10 |
+| `research/` | Read-only grounded Gemini research agent (tools, grounding, orchestrator, cache) — see [Phase 10](#phase-10-grounded-gemini-research-agent) | 10 |
+| `evaluation/` | Small benchmark + scorer for the research agent | 10 |
 | `demo.py` | Standalone script demonstrating Phases 1-3 on real data (no broker needed) | 1-3 |
 
 ---
@@ -176,6 +178,13 @@ python main.py run --train-only       # train the HMM and exit
 python main.py run --dashboard        # show the last saved state snapshot and exit
 python main.py run --live-dashboard   # run with the live auto-refreshing dashboard UI in this terminal
 python main.py run --web-dashboard    # feed dashboard_state.json for `streamlit run dashboard_app.py`
+
+python main.py research --symbol GOOGL [--question "..."] [--lookback-days 7] [--force-refresh]
+python main.py research --check        # probe the configured LLM + search backends
+python main.py research --list-models  # models the configured provider offers
+python main.py research --usage        # usage / limits / estimated spend
+python main.py research-prompt --symbol NVDA                  # prompt to paste into Google Finance Deep Search
+python main.py research-import --symbol NVDA [--compare]      # save the pasted report (+ compare with the agent)
 ```
 
 | Flag | Effect |
@@ -199,29 +208,34 @@ the system before your first real paper-trading session.
 
 ## Web dashboard (Streamlit)
 
-`dashboard_app.py` is a browser-based alternative to the terminal
-dashboard, with two views:
+`dashboard_app.py` is a browser UI with an "editorial lab" look (pale teal canvas, monospace labels,
+large headlines, bordered cards, gauge dials). Four pages in the top navigation:
 
-- **Live** — polls `dashboard_state.json`, which `python main.py run
-  --web-dashboard` writes every `monitoring.dashboard_refresh_seconds`.
-  Same regime/portfolio/positions/risk/system panel as the terminal
-  dashboard, laid out for a browser instead.
-- **Backtest** — reads `backtest_results/*.csv` (produced by `python
-  main.py backtest ...`) and renders the equity curve + drawdown, trade
-  log, and per-regime/per-confidence breakdowns interactively, computed
-  with the exact same `backtest/performance.py` functions the CLI report
-  uses.
+- **Live** — polls `dashboard_state.json`, which `python main.py run --web-dashboard` writes every
+  `monitoring.dashboard_refresh_seconds`. KPI cards plus risk gauges (daily drawdown, drawdown from peak,
+  exposure, leverage — each needle is the share of its limit used). Auto-refresh re-runs only that section.
+- **Backtest** — reads `backtest_results/*.csv` (from `python main.py backtest ...`): KPI cards, an abstract 3D
+  "portfolio field" drawn from the real equity paths (drag to rotate, keyboard arrows work, it stops spinning under
+  reduced-motion), net-performance / return-spectrum / diversification cards, regime and allocation charts. Every
+  number comes from the same `backtest/performance.py` functions the CLI report uses.
+- **AI Research** — the Phase 10 agent (see above).
+- **Methodology** — how the system works; every number is read from `config/settings.yaml`.
 
 ```bash
-pip install -r requirements.txt   # adds streamlit + plotly
+pip install -r requirements.txt
 python main.py run --dry-run --web-dashboard   # in one terminal
 streamlit run dashboard_app.py                 # in another, from regime-trader/
 ```
 
-The Live view has the same IPC limitation as `--live-dashboard` (see the
-FAQ below): it only shows a bot that's actually writing
-`dashboard_state.json` right now, not an arbitrary already-running
-instance you didn't start with `--web-dashboard`.
+Where the styling lives: `.streamlit/config.toml` (theme), `ui/tokens.py` (colors sampled from the design
+references, with text colors checked for WCAG AA contrast), `ui/theme.py` (all CSS, in one file, using only
+Streamlit's stable `data-testid` hooks), `ui/html.py` (HTML builders that escape every dynamic string — research
+text comes from the web and is never trusted), `ui/svg.py` (gauges/icons), `ui/charts.py` (Plotly in the same
+style), `ui/widgets/portfolio_field.py` (the 3D widget, a dependency-free canvas component), and `views/` (one
+module per page). Fonts (Inter Tight, IBM Plex Mono) load from Google Fonts and fall back to system fonts offline.
+
+The Live view has the same IPC limitation as `--live-dashboard` (see the FAQ below): it only shows a bot that is
+actually writing `dashboard_state.json` right now.
 
 ---
 

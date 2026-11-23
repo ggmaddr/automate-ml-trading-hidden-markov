@@ -1,0 +1,21 @@
+# Editorial-lab theme. Fonts and fine styling are layered on in ui/theme.py;
+# these base colors keep native widgets (inputs, tables, popovers) on-palette.
+[theme]
+base = "light"
+primaryColor = "#2973B2"
+backgroundColor = "#F3F2EC"
+secondaryBackgroundColor = "#ECEAE0"
+textColor = "#1C3350"
+linkColor = "#235F8E"
+borderColor = "#DAD6CA"
+baseRadius = "6px"
+showWidgetBorder = true
+font = "sans-serif"
+codeFont = "monospace"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[browser]
+gatherUsageStats = false
